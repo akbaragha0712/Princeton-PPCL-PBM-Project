@@ -1,2 +1,3 @@
 # Princeton-CLSJ-PBM-Project
-Princeton Computation Law and Social Justice Plea Bargain Modeling Project
+
+Placeholder for full explanation of this project and relevant code
