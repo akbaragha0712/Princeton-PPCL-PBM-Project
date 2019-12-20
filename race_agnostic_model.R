@@ -7,7 +7,7 @@ setwd('~/Downloads/Princeton-CLSJ-PBM-Project')
 W = as.matrix(read.csv('race_agnostic_modelweights.csv'))
 
 # Load test data in format used for Bechavod 2018 et. al.
-DF_test <- read_csv('test_dec11_parsed_IDs.csv')
+DF_test <- read_csv('test_parsed.csv')
 
 # Add intercept column to inputs and remove target variable `CHARGE REDUCTION`
 X_test <- cbind(DF_test, data.frame(intecept=1)) # Test set with additional col for intercept.
