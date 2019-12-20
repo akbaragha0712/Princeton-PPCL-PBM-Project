@@ -1,0 +1,36 @@
+library(readr)
+library(tidyr)
+
+### Predict Charge Reduction with Race-Agnostic Logistic Regression Model ####
+setwd('~/Downloads/Princeton-CLSJ-PBM-Project')
+# Load weights fitted by method of Bechavod 2018 et. al.
+W = as.matrix(read.csv('race_agnostic_modelweights.csv'))
+
+# Load test data in format used for Bechavod 2018 et. al.
+DF_test <- read_csv('test_dec11_parsed_IDs.csv')
+
+# Add intercept column to inputs and remove target variable `CHARGE REDUCTION`
+X_test <- cbind(DF_test, data.frame(intecept=1)) # Test set with additional col for intercept.
+X_test <- X_test[ , !(names(X_test) %in% c('CHARGE_REDUCTION', 'CASE_PARTICIPANT_ID'))]
+mtx <- as.matrix(X_test)
+
+
+sigmoid <- function(x.theta){
+  # Convert logit to probability
+  y_hat = 1 / (1 + exp(-x.theta))
+  return(y_hat)
+}
+
+#### Prediction ###
+DF_test$x.theta <- mtx %*% as.matrix(W) # Matrix Multiple Input features with weight vector.
+DF_test$y_hat <- unlist(lapply(DF_test$x.theta, sigmoid)) # Convert logit to probabilities
+
+# User determined classification threshold. Adjust based on desired precision-accuracy tradeoff.
+clf_thresh = 0.143
+
+# Convert probabilities to class based on `clf_thresh`
+DF_test$predicted_CHARGE_REDUCTION <- unlist(lapply(DF_test$y_hat, function(x) ifelse(x >=clf_thresh, 1, 0)))
+
+# Confusion Matrix
+table(DF_test$CHARGE_REDUCTION, DF_test$predicted_CHARGE_REDUCTION)
+
