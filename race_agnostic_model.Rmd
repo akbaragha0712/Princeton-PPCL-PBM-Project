@@ -2,7 +2,7 @@ library(readr)
 library(tidyr)
 
 ### Predict Charge Reduction with Race-Agnostic Logistic Regression Model ####
-setwd('~/Downloads/Princeton-CLSJ-PBM-Project')
+setwd('~/Downloads/Princeton-CLSJ-PBM-Project/data/')
 # Load weights fitted by method of Bechavod 2018 et. al.
 W = as.matrix(read.csv('race_agnostic_modelweights.csv'))
 
