@@ -2,7 +2,7 @@
 
 ## Model 3 - Race Agnostic Model
 
-For the third model we utilize the method developed by Yahav Bechavod and Katrina Ligett in "Penalizing Unfairness in Binary Classification". Predictions with fitted model can be run immediately in `race_agnostic_model.Rmd`. To retrain model follow the instructions below.
+For the race agnostic model we utilize the method developed by Yahav Bechavod and Katrina Ligett in ["Penalizing Unfairness in Binary Classification"](https://arxiv.org/abs/1707.00044). Predictions with fitted model can be run immediately in `race_agnostic_model.Rmd`. To retrain model follow the instructions below.
 
 ### Training
 
