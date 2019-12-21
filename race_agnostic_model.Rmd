@@ -33,4 +33,3 @@ DF_test$predicted_CHARGE_REDUCTION <- unlist(lapply(DF_test$y_hat, function(x) i
 
 # Confusion Matrix
 table(DF_test$CHARGE_REDUCTION, DF_test$predicted_CHARGE_REDUCTION)
-
