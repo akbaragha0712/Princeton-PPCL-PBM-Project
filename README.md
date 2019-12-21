@@ -1,6 +1,6 @@
 # Princeton-CLSJ-PBM-Project
 
-## Model 3 - Fair ML model
+## Model 3 - Race Agnostic Model
 
 For the third model we utilize the method developed by Yahav Bechavod and Katrina Ligett in "Penalizing Unfairness in Binary Classification". 
 
