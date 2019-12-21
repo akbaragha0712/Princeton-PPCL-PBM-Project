@@ -10,7 +10,7 @@ Predictions with fitted model can be run immediately in `race_agnostic_model.Rmd
 
 The code to train this model and find hyperparameters is automated in the following github repository. Dependencies are automatically downloaded following the instructions in their README.
 
-    `$ git clone https://github.com/jjgold012/lab-project-fairness`
+    `$ git clone https://github.com/jjgold012/lab-project-fairness.git`
 
 To train a new model with our Chicago dataset we provide code to create the neccesary inputs to run their method. These include a reformated training data set and a json file which outlines options for their method to use, such as target variable, features, and protected group variable.
 
