@@ -29,7 +29,7 @@ Run the training proceedure.
 The method will split the training set via 5-fold cross validation to suggest the best hyperparameters to be used, and returns many outputs which includes the best weight vector used in the trained logistic regression function. Note, test_processed.csv is not being used in the 5-fold cross validation.
 
 
-#### Testing
+### Testing
 
 Fitted weights can be found near the end of the result file under the header "Best Values for Objective squared relaxation" with key "w". Unfortuneately, the authors do not provide an automated way to retrieve or parse results. Copy weights from chicago.result to race_agnost_modelweights.csv
 
