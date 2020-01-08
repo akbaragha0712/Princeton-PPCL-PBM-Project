@@ -1,0 +1,260 @@
+---
+title: "Chicago_DA_Notebook_Data_Processing"
+author: "Akbar A. Agha"
+date: "December 17, 2019"
+output: html_document
+---
+
+### library activation ###
+```{r}
+library(ggplot2)  
+library(dplyr)
+library(readr)
+library(tidyr)
+library(caTools)
+library(caret)
+library(ROCR)
+library(xgboost)
+library(ggforce)
+library(data.table)
+library(gdata)
+library(DMwR)
+theme_set(theme_bw())
+```
+
+### data input ###
+```{r}
+
+# setwd
+setwd("C:/Users/xaxa067/Documents/Job/Analytics/R/CLSJ")
+
+#-------#
+
+## Dispositions ##
+dispositions <- read_csv('./Dispositions.csv',col_types = cols(.default = "c")) %>%
+  mutate(CLASS = ifelse(CLASS=='M', 5, CLASS), # Misdemeanor is encoded as 5 
+         CLASS = ifelse(CLASS=='X', 0, CLASS)) %>% # X is encoded as 0
+  filter(CLASS %in% c(0, 1, 2, 3, 4, 5))
+
+# CHECK - One `PARTICIPANT_ID` per `CASE_ID`
+length(unique(dispositions$CASE_PARTICIPANT_ID)) ==length(dispositions$CASE_PARTICIPANT_ID)
+
+# remove duplicates
+dispositions <- dispositions %>% distinct()
+
+#-------#
+
+## INITIATION ##
+initiations <- read_csv('./Initiation.csv',col_types = cols(.default = "c")) %>%
+  mutate(CLASS = ifelse(CLASS=='M', 5, CLASS),
+         CLASS = ifelse(CLASS=='X', 0, CLASS)) %>%
+  filter(CLASS %in% c(0, 1, 2, 3, 4, 5))
+
+# CHECK - One `PARTICIPANT_ID` per `CASE_ID` 
+length(unique(initiations$CASE_PARTICIPANT_ID)) == length(initiations$CASE_PARTICIPANT_ID) # One `PARTICIPANT_ID` per `CASE_ID`
+
+# remove duplicates
+initiations <- initiations %>% distinct()
+
+#-------#
+
+## Intake ##
+intake <- read_csv('./Intake.csv',col_types = cols(.default = "c"))
+
+# CHECK - One `PARTICIPANT_ID` per `CASE_ID` 
+length(unique(intake$CASE_PARTICIPANT_ID)) == length(intake$CASE_PARTICIPANT_ID)
+
+# remove duplicates
+intake <- intake %>% distinct()
+
+```
+
+### data manipulation ###
+```{r}
+
+## Filter dispositions to Plea of Guilty
+dispositions <- dispositions %>%
+  filter(CHARGE_DISPOSITION  == 'Plea Of Guilty' | CHARGE_DISPOSITION  == 'Nolle Prosecution' | CHARGE_DISPOSITION  == 'Case Dismissed' | CHARGE_DISPOSITION  == 'SOL' | CHARGE_DISPOSITION  == 'SOLW')
+  
+# initial charge count by case participant
+initiations <- as.data.table(initiations)[, CHRG_INIT := length(PRIMARY_CHARGE), by = CASE_PARTICIPANT_ID][]
+
+# initual mean charge by case participant
+initiations$CLASS <- as.numeric(initiations$CLASS)
+initiations <- as.data.table(initiations)[, MEAN_CLASS_INIT := mean(CLASS), by = CASE_PARTICIPANT_ID][]
+
+# final charge count by case participant
+d <- dispositions %>%
+  group_by(CASE_PARTICIPANT_ID,PRIMARY_CHARGE) %>%
+  filter(CHARGE_DISPOSITION == 'Plea Of Guilty') %>%
+  summarise(CHRG_DISP = n())
+dispositions <- dispositions %>%
+  inner_join(d[,c('CASE_PARTICIPANT_ID','CHRG_DISP')],by = c("CASE_PARTICIPANT_ID"))
+
+# final mean charge by case participant
+dispositions$CLASS <- as.numeric(dispositions$CLASS)
+d <- dispositions %>%
+  filter(CHARGE_DISPOSITION == 'Plea Of Guilty')
+d <- d %>%
+  group_by(CASE_PARTICIPANT_ID) %>%
+  summarise(MEAN_CLASS_DISP = mean(CLASS,na.rm = TRUE))
+dispositions <- dispositions %>%
+  inner_join(d[,c('CASE_PARTICIPANT_ID','MEAN_CLASS_DISP')],by = c("CASE_PARTICIPANT_ID"))
+  
+#-------#
+
+# Combine Initiations and Dispositions
+disp_init <- initiations[,c('CASE_ID', 'CASE_PARTICIPANT_ID','CHARGE_ID','PRIMARY_CHARGE', 'CLASS','CHAPTER','ACT','SECTION','AOIC','AGE_AT_INCIDENT','GENDER','RACE','UPDATED_OFFENSE_CATEGORY', 'CHARGE_OFFENSE_TITLE','CHRG_INIT','MEAN_CLASS_INIT')] %>%
+  rename(CLASS.INITIATIONS=CLASS) %>%
+  inner_join(dispositions[,c('CASE_ID', 'CASE_PARTICIPANT_ID', 'CHARGE_ID', 'CLASS','JUDGE','COURT_NAME','COURT_FACILITY','DISPO_DATE', 'INCIDENT_BEGIN_DATE','ARREST_DATE','CHARGE_DISPOSITION','CHRG_DISP','MEAN_CLASS_DISP')], by = c("CASE_ID", "CASE_PARTICIPANT_ID", "CHARGE_ID")) %>%
+  mutate(CHARGE_REDUCTION = ifelse(CLASS>CLASS.INITIATIONS, 1, 0))
+
+# Modify CHARGE_DISPOSITION
+disp_init <- disp_init %>% mutate(CHARGE_REDUCTION=as.factor(ifelse(CHARGE_DISPOSITION  == 'Nolle Prosecution' | CHARGE_DISPOSITION  == 'Case Dismissed' | CHARGE_DISPOSITION  == 'SOL' | CHARGE_DISPOSITION  == 'SOLW',1,CHARGE_REDUCTION)))
+
+#-------#
+
+# combine intake, initiations and dispositions
+disp_init_intake <- intake[,c('CASE_ID', 'CASE_PARTICIPANT_ID','LAW_ENFORCEMENT_AGENCY','INCIDENT_CITY')] %>%
+  inner_join(disp_init,by = c("CASE_ID", "CASE_PARTICIPANT_ID"))
+
+# remove NA's
+disp_init_intake <- na.omit(disp_init_intake) #remove na's
+
+# remove items not for prediction
+disp_init_intake <- disp_init_intake[,-c(1,6,8,9,16,17,18,19,23,24,25,26,27,28)] 
+
+# RACE only white and black
+disp_init_intake <- disp_init_intake %>% filter(RACE == 'White' | RACE == 'Black')
+
+disp_init_intake$AGE_AT_INCIDENT <- as.numeric(disp_init_intake$AGE_AT_INCIDENT) #age should be numeric
+
+disp_init_intake[sapply(disp_init_intake, is.character)] <- lapply(disp_init_intake[sapply(disp_init_intake, is.character)],as.factor) #all into factors
+
+disp_init_intake$CLASS.INITIATIONS <- as.factor(disp_init_intake$CLASS.INITIATIONS)
+disp_init_intake$CHARGE_REDUCTION <- as.numeric(disp_init_intake$CHARGE_REDUCTION)
+disp_init_intake <- disp_init_intake %>% mutate(CHARGE_REDUCTION=ifelse(CHARGE_REDUCTION==1,0,1))
+
+# only 'Retail Theft'
+disp_init_intake <- disp_init_intake %>% filter(UPDATED_OFFENSE_CATEGORY == 'Retail Theft')
+
+#-------#
+
+# combine intake, initiations and dispositions
+disp_init_intake_W1 <- intake[,c('CASE_ID', 'CASE_PARTICIPANT_ID','LAW_ENFORCEMENT_AGENCY','INCIDENT_CITY')] %>%
+  inner_join(disp_init,by = c("CASE_ID", "CASE_PARTICIPANT_ID"))
+
+# remove NA's
+disp_init_intake_W1 <- na.omit(disp_init_intake_W1) #remove na's
+
+# remove items not for prediction
+disp_init_intake_W1 <- disp_init_intake_W1[,-c(1,6,8,9,16,17,18,19,23,24,25,26,27,28)] 
+
+# create variable to modify cases
+disp_init_intake_W1$combined <- apply(disp_init_intake_W1,1,function(x) paste(toString(x[2]),toString(x[3]),toString(x[7]),toString(x[11]),toString(x[12]),toString(x[13]),toString(x[14]),sep = "_"))
+
+# label RACE == 'Black'
+disp_init_intake_W1 <- disp_init_intake_W1 %>% mutate(FLAG=ifelse(RACE=='Black',1,0))
+
+# RACE only white and black
+disp_init_intake_W1 <- disp_init_intake_W1 %>% filter(RACE == 'White' | RACE == 'Black')
+
+# only 'Retail Theft'
+disp_init_intake_W1 <- disp_init_intake_W1 %>% filter(UPDATED_OFFENSE_CATEGORY == 'Retail Theft')
+
+# data set with Black only
+disp_init_intake_B <- disp_init_intake_W1 %>% filter(RACE=='Black')
+
+# create distribution of combined variable for White
+WRatio <- disp_init_intake_W1 %>% filter(RACE=='White') %>% group_by(combined) %>% summarise(Count=n()) %>% mutate(freq = (Count/sum(Count))*100)
+WRatio <- WRatio %>% mutate(freq2=cumsum(freq))
+WRatio$freq2 <- (WRatio$freq2/100)
+
+# Randomly distribute cases
+set.seed(123)
+disp_init_intake_B$Rand <- runif(as.numeric(count(disp_init_intake_B)))
+disp_init_intake_B <- disp_init_intake_B[order(disp_init_intake_B$Rand),]
+
+# Function to put combined variable with same distribution as White in Black cases
+i <- 1
+repeat {
+  if(i==1){
+    disp_init_intake_B <- disp_init_intake_B %>% mutate(combined=ifelse(Rand<WRatio$freq2[i],WRatio$combined[i],combined))
+  } else 
+    {
+    disp_init_intake_B <- disp_init_intake_B %>% mutate(combined=ifelse(Rand<WRatio$freq2[i],ifelse(Rand>=WRatio$freq2[i-1],WRatio$combined[i],combined),combined))
+  }
+  i = i + 1
+  if(i>as.numeric(count(WRatio))){
+    break
+  }
+}
+
+# function to split combined variable into appriopriate variables
+j <- 1
+repeat {
+  disp_init_intake_B$LAW_ENFORCEMENT_AGENCY[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][1]
+  disp_init_intake_B$INCIDENT_CITY[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][2]
+  # disp_init_intake_B$CLASS.INITIATIONS[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][3]
+  # disp_init_intake_B$SECTION[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][3]
+  disp_init_intake_B$AOIC[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][3]
+  disp_init_intake_B$UPDATED_OFFENSE_CATEGORY[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][4]
+  disp_init_intake_B$JUDGE[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][5]
+  disp_init_intake_B$COURT_NAME[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][6]
+  disp_init_intake_B$COURT_FACILITY[j] <- strsplit(disp_init_intake_B$combined,"_")[[j]][7]
+  
+  j = j + 1
+  
+  if(j>as.numeric(count(disp_init_intake_B))){
+    break
+  }
+}
+
+# Convert RACE variable from Black to White
+disp_init_intake_B <- disp_init_intake_B %>% mutate(RACE='White')
+
+# remove random number
+disp_init_intake_B$Rand <- NULL
+
+# keep only White cases in original data set
+disp_init_intake_W1 <- disp_init_intake_W1 %>% filter(RACE=='White')
+
+# Combined White and Black converted to White cases into new version of original data set
+disp_init_intake_W1 <- rbind(disp_init_intake_W1,disp_init_intake_B)
+
+disp_init_intake_W1$AGE_AT_INCIDENT <- as.numeric(disp_init_intake_W1$AGE_AT_INCIDENT) #age should be numeric
+
+disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)] <- lapply(disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)],as.factor) #all into factors
+
+# create mapping for factor variables to ensure they work in model
+Map1 <- mapLevels(x=list(disp_init_intake_W1$COURT_FACILITY, disp_init_intake$COURT_FACILITY),codes=FALSE,combine=TRUE)
+Map2 <- mapLevels(x=list(disp_init_intake_W1$INCIDENT_CITY, disp_init_intake$INCIDENT_CITY),codes=FALSE,combine=TRUE)
+Map3 <- mapLevels(x=list(disp_init_intake_W1$COURT_NAME, disp_init_intake$COURT_NAME),codes=FALSE,combine=TRUE)
+Map4 <- mapLevels(x=list(disp_init_intake_W1$RACE, disp_init_intake$RACE),codes=FALSE,combine=TRUE)
+Map5 <- mapLevels(x=list(disp_init_intake_W1$LAW_ENFORCEMENT_AGENCY, disp_init_intake$LAW_ENFORCEMENT_AGENCY),codes=FALSE,combine=TRUE)
+Map6 <- mapLevels(x=list(disp_init_intake_W1$CLASS.INITIATIONS, disp_init_intake$CLASS.INITIATIONS),codes=FALSE,combine=TRUE)
+Map7 <- mapLevels(x=list(disp_init_intake_W1$SECTION, disp_init_intake$SECTION),codes=FALSE,combine=TRUE)
+Map8 <- mapLevels(x=list(disp_init_intake_W1$AOIC, disp_init_intake$AOIC),codes=FALSE,combine=TRUE)
+Map9 <- mapLevels(x=list(disp_init_intake_W1$GENDER, disp_init_intake$GENDER),codes=FALSE,combine=TRUE)
+Map10 <- mapLevels(x=list(disp_init_intake_W1$UPDATED_OFFENSE_CATEGORY, disp_init_intake$UPDATED_OFFENSE_CATEGORY),codes=FALSE,combine=TRUE)
+Map11 <- mapLevels(x=list(disp_init_intake_W1$JUDGE, disp_init_intake$JUDGE),codes=FALSE,combine=TRUE)
+
+# apply mapping to converted data set
+mapLevels(disp_init_intake_W1$COURT_FACILITY) <- Map1
+mapLevels(disp_init_intake_W1$INCIDENT_CITY) <- Map2
+mapLevels(disp_init_intake_W1$COURT_NAME) <- Map3
+mapLevels(disp_init_intake_W1$RACE) <- Map4
+mapLevels(disp_init_intake_W1$LAW_ENFORCEMENT_AGENCY) <- Map5
+mapLevels(disp_init_intake_W1$CLASS.INITIATIONS) <- Map6
+mapLevels(disp_init_intake_W1$SECTION) <- Map7
+mapLevels(disp_init_intake_W1$AOIC) <- Map8
+mapLevels(disp_init_intake_W1$GENDER) <- Map9
+mapLevels(disp_init_intake_W1$UPDATED_OFFENSE_CATEGORY) <- Map10
+mapLevels(disp_init_intake_W1$JUDGE) <- Map11
+
+disp_init_intake_W1$CLASS.INITIATIONS <- as.factor(disp_init_intake_W1$CLASS.INITIATIONS)
+
+disp_init_intake_W1$CHARGE_REDUCTION <- as.numeric(disp_init_intake_W1$CHARGE_REDUCTION) #age should be numeric
+disp_init_intake_W1 <- disp_init_intake_W1 %>% mutate(CHARGE_REDUCTION=ifelse(CHARGE_REDUCTION==1,0,1))
+
+```

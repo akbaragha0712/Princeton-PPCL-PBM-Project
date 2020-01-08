@@ -1,0 +1,134 @@
+---
+title: "Chicago_DA_Notebook_Modeling_Step1&2"
+author: "Akbar A. Agha"
+date: "December 17, 2019"
+output: html_document
+---
+
+### split into training and test data ###
+```{r}
+
+set.seed(123)
+split = sample.split(disp_init_intake$CHARGE_REDUCTION, SplitRatio = 0.5)
+train = subset(disp_init_intake, split == TRUE)
+test = subset(disp_init_intake, split == FALSE)
+
+fwrite(train,"train.csv")
+fwrite(test,"test.csv")
+
+new_train <- model.matrix(~.+0,data = train[,-c(1,4,15)])
+new_test <- model.matrix(~.+0,data = test[,-c(1,4,15)])
+
+dTrain <- xgb.DMatrix(data = new_train,
+                                  label = train$CHARGE_REDUCTION,
+                                  missing = NaN)
+
+dValidation <- xgb.DMatrix(data = new_test,
+                                  label = test$CHARGE_REDUCTION,
+                                  missing = NaN)
+
+```
+
+### XGBoost ###
+```{r}
+
+# xgboost model
+start <- Sys.time()
+
+params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.1, gamma=5, max_depth=8, min_child_weight=1, subsample=1, colsample_bytree=1)
+
+xgb_regression <- xgb.train (params = params, data = dTrain, nfold = 5,nrounds = 100, watchlist = list(val=dValidation,train=dTrain), print.every.n = 10, maximize = F , eval_metric = "auc")
+
+end <- Sys.time()
+end - start
+
+# View variable importance
+mat <- xgb.importance (feature_names = colnames(new_train),model = xgb_regression)
+windows()
+xgb.plot.importance (importance_matrix = mat[1:20]) 
+
+# create prediction vector
+xgb_predict <- predict(xgb_regression,dValidation)
+
+# check mean probability by actual charge reduction
+tapply(xgb_predict,test$CHARGE_REDUCTION,mean)
+
+# Confusion matrix to look at FPR and FNR (assuming threshold is set at 0.3)
+table(test$CHARGE_REDUCTION,xgb_predict>0.3)
+
+# Combine test set and prediction into data set
+Predict <- cbind(test,xgb_predict)
+
+# create binary charge reduction prediction variable assuming threshold at 0.3
+Predict <- Predict %>% mutate(xgb_predict2=ifelse(xgb_predict>0.3,1,0))
+
+# Prediction by RACE before conversion
+ByRace1 <- Predict %>% group_by(RACE,xgb_predict2) %>% summarise(Count=n()) %>% mutate(freq = (Count/sum(Count))*100)
+
+# ROC curve helps with interpreting model accuracy
+ROCRpred = prediction(xgb_predict, test$CHARGE_REDUCTION)
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+windows()
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+```
+
+### Predict on converted to White data ###
+```{r}
+
+set.seed(123)
+split = sample.split(disp_init_intake_W1$CHARGE_REDUCTION, SplitRatio = 0.5)
+train = subset(disp_init_intake_W1, split == TRUE)
+test = subset(disp_init_intake_W1, split == FALSE)
+
+new_train <- model.matrix(~.+0,data = train[,-c(1,4,15,16,17)])
+new_test <- model.matrix(~.+0,data = test[,-c(1,4,15,16,17)])
+
+dTrain <- xgb.DMatrix(data = new_train,
+                                  label = train$CHARGE_REDUCTION,
+                                  missing = NaN)
+
+dValidation <- xgb.DMatrix(data = new_test,
+                                  label = test$CHARGE_REDUCTION,
+                                  missing = NaN)
+
+# create prediction vector
+xgb_predict_W1 <- predict(xgb_regression,dValidation)
+
+# Confusion matrix to look at FPR and FNR (assuming threshold is set at 0.3)
+table(test$CHARGE_REDUCTION,xgb_predict_W1>0.3)
+
+# Combine test set and prediction into data set
+W1_Predict <- cbind(test,xgb_predict_W1)
+
+# create binary charge reduction prediction variable assuming threshold at 0.3
+W1_Predict <- W1_Predict %>% mutate(xgb_predict_W1_2=ifelse(xgb_predict_W1>0.3,1,0))
+
+# Prediction by RACE after conversion, FLAG == 1 is the formerly Black cases
+ByRace2 <- W1_Predict %>% group_by(FLAG,xgb_predict_W1_2) %>% summarise(Count=n()) %>% mutate(freq = (Count/sum(Count))*100)
+
+Predict$CASE_PARTICIPANT_ID <- as.character(Predict$CASE_PARTICIPANT_ID)
+Predict$CHARGE_ID <- as.character(Predict$CHARGE_ID)
+W1_Predict$CASE_PARTICIPANT_ID <- as.character(W1_Predict$CASE_PARTICIPANT_ID)
+W1_Predict$CHARGE_ID <- as.character(W1_Predict$CHARGE_ID)
+
+# Combine Predictions
+Predict_Comb <- Predict %>%
+  inner_join(W1_Predict,by = c("CASE_PARTICIPANT_ID","CHARGE_ID"))
+
+# Look at mean prediction by converted cases
+tapply(Predict_Comb$xgb_predict_W1,Predict_Comb$RACE.x,mean)
+tapply(Predict_Comb$xgb_predict,Predict_Comb$RACE.x,mean)
+
+# only cases where no charge reduction before and has charge reduction now
+Predict_Comb2 <- Predict_Comb %>% filter(xgb_predict2 == 0 & xgb_predict_W1_2 == 1)
+
+# hone in on cases where incident city the same
+Predict_Comb2 <- Predict_Comb2 %>% filter(INCIDENT_CITY.x == INCIDENT_CITY.y)
+
+# calculate difference in predicted charge reduction probability
+Predict_Comb2 <- Predict_Comb2 %>% mutate(check = xgb_predict_W1 - xgb_predict)
+
+
+```
+
