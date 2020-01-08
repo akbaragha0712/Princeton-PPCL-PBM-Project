@@ -2,7 +2,7 @@
 
 ## Model 1 - Unaltered Model
 
-For our baseline model we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the .["Cook County District Attorney Site"].(https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed). To make a prediction we build an XGBoost model using only cases where the crime charged was in the Retail Theft category.
+For our baseline model we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the ["Cook County District Attorney Site"](https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed). To make a prediction we build an XGBoost model using only cases where the crime charged was in the Retail Theft category.
 
 ## Model 2 - Convert race of individuals to White
 
