@@ -13,6 +13,9 @@ split = sample.split(disp_init_intake$CHARGE_REDUCTION, SplitRatio = 0.5)
 train = subset(disp_init_intake, split == TRUE)
 test = subset(disp_init_intake, split == FALSE)
 
+fwrite(train,"train.csv")
+fwrite(test,"test.csv")
+
 new_train <- model.matrix(~.+0,data = train[,-c(1,4,15)])
 new_test <- model.matrix(~.+0,data = test[,-c(1,4,15)])
 
