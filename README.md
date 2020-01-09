@@ -20,7 +20,7 @@ The code to train this model and find hyperparameters is automated in the follow
 
 To train a new model with our Chicago dataset we provide code to create the neccesary inputs to run their method. These include a reformated training data set and a json file which outlines options for their method to use, such as target variable, features, and protected group variable.
 
-    `$ python preprocess.py train.csv test.csv`
+    `$ python model3_preprocess.py train.csv test.csv`
 
 Three files will be created, `train_processed.csv`, `test_processed.csv`, and `chicago.json`. Two of the files must be moved to run the fairness method. Model predictions will be made using `test_processed.csv` in the Princeton-CLSJ-PBM-Project directory.
 
