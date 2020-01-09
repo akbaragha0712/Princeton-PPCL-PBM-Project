@@ -1,5 +1,5 @@
 """
-Description: The fair logistic regression method requires feature column names in a json file
+Description: Process data to train model unsing approach developed by Yahav Bechavod et. al. (2017).
 Here, column names are parsed and json file is modified with the addition of selected column names to be used.
 """
 import sys, json
@@ -44,11 +44,9 @@ def mod_json(options_file, header, num_folds, csv_filename):
     #// Modify json options file for fairness-penalizer method.
     with open(options_file, 'r') as infile:
         data = json.load(infile)
-
     data['data_headers'] = header # hold features names to use and exclude target var
     data['num_of_folds'] = num_folds
     data['file'] = csv_filename
-
     with open(options_file, 'w') as outfile:
         json.dump(data, outfile)
 
@@ -70,12 +68,10 @@ def preprocess(df, to_keep):
 train_df = pd.read_csv(sys.argv[1])
 test_df = pd.read_csv(sys.argv[2])
 
-
 #### CALLS ####
 to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', 'AOIC', 'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', 'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
 
-# Parse Train Data
-
+# Parse Train Data 
 train_ids = train_df['CASE_PARTICIPANT_ID']
 train_df = preprocess(train_df, to_keep)
 train_df['CASE_PARTICIPANT_ID'] = train_ids # Prevent IDs from being one-hot encoded
@@ -85,7 +81,6 @@ test_ids = test_df['CASE_PARTICIPANT_ID']
 test_df = preprocess(test_df, to_keep)
 test_df['CASE_PARTICIPANT_ID'] = test_ids # Prevent IDs from being one-hot encoded
 test_df.to_csv('test_processed.csv', index=False)
-
 
 # Write JSON file
 header = ','.join(list(train_df.drop(['CHARGE_REDUCTION', 'CASE_PARTICIPANT_ID'], axis=1))) # Write features to use in json options file.
