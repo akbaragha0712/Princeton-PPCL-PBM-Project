@@ -224,7 +224,9 @@ disp_init_intake_W1 <- rbind(disp_init_intake_W1,disp_init_intake_B)
 
 disp_init_intake_W1$AGE_AT_INCIDENT <- as.numeric(disp_init_intake_W1$AGE_AT_INCIDENT) #age should be numeric
 
-disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)] <- lapply(disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)],as.factor) #all into factors
+disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)] <- lapply(disp_init_intake_W1[sapply(disp_init_intake_W1, is.character)],as.factor) 
+disp_init_intake_W1[sapply(disp_init_intake_W1, is.numeric)] <- lapply(disp_init_intake_W1[sapply(disp_init_intake_W1, is.numeric)],as.factor)
+#all into factors
 
 # create mapping for factor variables to ensure they work in model
 Map1 <- mapLevels(x=list(disp_init_intake_W1$COURT_FACILITY, disp_init_intake$COURT_FACILITY),codes=FALSE,combine=TRUE)
