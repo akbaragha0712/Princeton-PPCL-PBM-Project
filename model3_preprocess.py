@@ -1,23 +1,20 @@
 """
-Description: Process data to train model unsing approach developed by Yahav Bechavod et. al. (2017).
-Here, column names are parsed and json file is modified with the addition of selected column names to be used.
+Description: Process data to train model unsing approach developed
+by Yahav Bechavod et. al. (2017). Here, column names are parsed and json file
+is modified with selected column names to be used.
 """
-import sys, json
+import os, sys, json
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
-def keep_cols(df, to_keep):
-    df = pd.DataFrame(df[to_keep])
-    df['AOIC'] = ['a'+str(aioc) for aioc in df['AOIC']] # Int's to string to force one-hot encoding downstream
-    return df
-
 def parse_JUDGE(df):
-    # Remove commas from judge feature
     df['JUDGE'] = [j.replace(',', '') for j in df['JUDGE']]
     return df
 
 def parse_RACE(df):
-    # Convert race here, to prevent one-hot encoding downstream
+    """
+    Convert race to int to prevent one-hot encoding downstream
+    """
     race_encoded = []
     for race in df['RACE']:
         if race == 'Black':
@@ -41,10 +38,12 @@ def min_max_scale(df, cols_to_scale):
     return df
 
 def mod_json(options_file, header, num_folds, csv_filename):
-    #// Modify json options file for fairness-penalizer method.
+    """
+    Modify json options file for fairness-penalizer method.
+    """
     with open(options_file, 'r') as infile:
         data = json.load(infile)
-    data['data_headers'] = header # hold features names to use and exclude target var
+    data['data_headers'] = header # Features names to use. Exclude target var
     data['num_of_folds'] = num_folds
     data['file'] = csv_filename
     with open(options_file, 'w') as outfile:
@@ -55,7 +54,8 @@ def scale_minmax(df, col_name, mn, mx):
     return df
 
 def preprocess(df, to_keep):
-    df = keep_cols(df, to_keep)
+    df = pd.DataFrame(df[to_keep])
+    df['AOIC'] = ['a'+str(aioc) for aioc in df['AOIC']] #Convert int to string to ensure one-hot encoding downstream.
     df = parse_JUDGE(df)
     df = parse_RACE(df)
     df = to_dummy(df)
@@ -64,26 +64,28 @@ def preprocess(df, to_keep):
     return df
 
 ##### INPUTS ####
-
 train_df = pd.read_csv(sys.argv[1])
 test_df = pd.read_csv(sys.argv[2])
 
-#### CALLS ####
-to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', 'AOIC', 'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', 'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
-
-# Parse Train Data 
 train_ids = train_df['CASE_PARTICIPANT_ID']
-train_df = preprocess(train_df, to_keep)
-train_df['CASE_PARTICIPANT_ID'] = train_ids # Prevent IDs from being one-hot encoded
-train_df.to_csv('train_processed.csv', index=False)
-
 test_ids = test_df['CASE_PARTICIPANT_ID']
-test_df = preprocess(test_df, to_keep)
-test_df['CASE_PARTICIPANT_ID'] = test_ids # Prevent IDs from being one-hot encoded
-test_df.to_csv('test_processed.csv', index=False)
 
-# Write JSON file
-header = ','.join(list(train_df.drop(['CHARGE_REDUCTION', 'CASE_PARTICIPANT_ID'], axis=1))) # Write features to use in json options file.
+full_df = pd.concat([train_df, test_df], axis=0)
+full_df = full_df.set_index('CASE_PARTICIPANT_ID')
+full_df = full_df.drop('CASE_PARTICIPANT_ID')
+
+#### CALLS ####
+to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', \
+    'AOIC',  'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', \
+    'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
+
+# Parse Train Data
+full_df = preprocess(full_df, to_keep)
+full_df.loc[train_ids].to_csv('train_processed.csv', index=True)
+full_df.loc[test_ids].to_csv('test_processed.csv', index=True)
+
+# Write features to use in json options file.
+header = ','.join(list(full_df.drop(['CHARGE_REDUCTION'], axis=1)))
 options_file = 'chicago.json'
 folds = 5 # k-fold to use in options file for hyperparameter selection.
-mod_options(options_file, header, folds, train_parsed_fname)
+mod_json(options_file, header, folds, 'train_processed.csv')
