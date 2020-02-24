@@ -85,11 +85,11 @@ initiations <- as.data.table(initiations)[, MEAN_CLASS_INIT := mean(CLASS), by =
 
 # final charge count by case participant
 d <- dispositions %>%
-  group_by(CASE_PARTICIPANT_ID,PRIMARY_CHARGE) %>%
   filter(CHARGE_DISPOSITION == 'Plea Of Guilty') %>%
+  group_by(CASE_PARTICIPANT_ID) %>%
   summarise(CHRG_DISP = n())
 dispositions <- dispositions %>%
-  inner_join(d[,c('CASE_PARTICIPANT_ID','CHRG_DISP')],by = c("CASE_PARTICIPANT_ID"))
+  left_join(d[,c('CASE_PARTICIPANT_ID','CHRG_DISP')],by = c("CASE_PARTICIPANT_ID"))
 
 # final mean charge by case participant
 dispositions$CLASS <- as.numeric(dispositions$CLASS)
@@ -99,7 +99,7 @@ d <- d %>%
   group_by(CASE_PARTICIPANT_ID) %>%
   summarise(MEAN_CLASS_DISP = mean(CLASS,na.rm = TRUE))
 dispositions <- dispositions %>%
-  inner_join(d[,c('CASE_PARTICIPANT_ID','MEAN_CLASS_DISP')],by = c("CASE_PARTICIPANT_ID"))
+  left_join(d[,c('CASE_PARTICIPANT_ID','MEAN_CLASS_DISP')],by = c("CASE_PARTICIPANT_ID"))
   
 #-------#
 
