@@ -75,15 +75,13 @@ if __name__ == "__main__":
     full_df = full_df.set_index('CASE_PARTICIPANT_ID')
     full_df = full_df.drop('CASE_PARTICIPANT_ID')
 
-        #### CALLS ####
+    #### CALLS ####
     to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', \
             'AOIC',  'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', \
             'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
 
     # Parse Train Data
     full_df = preprocess(full_df, to_keep)
-    #full_df['CASE_PARTICIPANT_ID'] = list(train_ids) + list(test_ids)
-
     full_df.head(n=train_df.shape[0]).to_csv('train_processed.csv', index=False)
     full_df.tail(n=test_df.shape[0]).to_csv('test_processed.csv', index=False)
 

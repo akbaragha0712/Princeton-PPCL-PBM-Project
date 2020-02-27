@@ -1,36 +1,112 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
 # Model3 - Race Agnostic
+```{r Load Libraries}
 library(readr)
 library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
 
-### Predict Charge Reduction with Race-Agnostic Logistic Regression Model ####
+## Predict Charge Reduction with Race-Agnostic Logistic Regression Model
+```{r}
 setwd('~/Downloads/Princeton-CLSJ-PBM-Project/data/')
+```
+
+```{r Data}
 # Load weights fitted by method of Bechavod 2018 et. al.
-W = as.matrix(read.csv('race_agnostic_modelweights.csv'))
+parseWeights <- function(weights_path){
+  W <- scan(weights_path, what="character", sep=NULL)
+  W <- gsub('\n       ', '', W)
+  W <- gsub(' ', '', W)
+  W = as.numeric(unlist(strsplit(W, split=',')))
+  return(as.matrix(W))
+}
 
-# Load test data in format used for Bechavod 2018 et. al.
-DF_test <- read_csv('test_parsed.csv')
+get_feature_matrix <- function(processed_path){
+  # Load test data in format used for Bechavod 2018 et. al.
+  DF <- read_csv(processed_path) %>%
+    select(-CHARGE_REDUCTION) # Remove IDs and Target Variable
+  
+  # Add intercept column to inputs and remove target variable `CHARGE REDUCTION`
+  X <- cbind(DF, data.frame(intecept=1)) # Test set with additional col for intercept.
+  mtx <- as.matrix(X)
+  return(mtx)
+}
 
-# Add intercept column to inputs and remove target variable `CHARGE REDUCTION`
-X_test <- cbind(DF_test, data.frame(intecept=1)) # Test set with additional col for intercept.
-X_test <- X_test[ , !(names(X_test) %in% c('CHARGE_REDUCTION', 'CASE_PARTICIPANT_ID'))]
-mtx <- as.matrix(X_test)
+# Model 3 Weights
+W = parseWeights('race_agnostic_modelweights.csv')
 
+# IDs for samples in dataset.
+DF_train <- read_csv('train.csv') %>%
+  mutate(DATA_SPLIT = 'TRAIN')
 
+DF_test <- read_csv('test.csv') %>%
+  mutate(DATA_SPLIT = 'TEST')
+
+dim(DF_test)
+dim(unique(DF_test, by=colnames(DF_test)))
+
+# Feature Matrices
+train_mtx <- get_feature_matrix('train_processed.csv')
+test_mtx <- get_feature_matrix('test_processed.csv')
+
+dim(train_mtx)
+dim(test_mtx)
+```
+
+```{r Predict}
 sigmoid <- function(x.theta){
   # Convert logit to probability
   y_hat = 1 / (1 + exp(-x.theta))
   return(y_hat)
 }
 
-#### Prediction ###
-DF_test$x.theta <- mtx %*% as.matrix(W) # Matrix Multiple Input features with weight vector.
-DF_test$y_hat <- unlist(lapply(DF_test$x.theta, sigmoid)) # Convert logit to probabilities
+predict <- function(feature_mtx, W){
+  # Inputs: Feature matrix and fitted model weights.
+  # Return probability estimates for all input x_i.
+  x.theta <- feature_mtx %*% W
+  return( unlist(lapply(x.theta, sigmoid)) ) # list of numerics
+}
 
-# User determined classification threshold. Adjust based on desired precision-accuracy tradeoff.
-clf_thresh = 0.143
+classify <- function(yhat_vct, clf_thresh){
+  # Input probability estimates (y_hat) and
+  # return 1 if >= to classifier threshold.
+  return( unlist(lapply(yhat_vct, function(x) ifelse(x >=clf_thresh, 1, 0))) )
+}
 
-# Convert probabilities to class based on `clf_thresh`
-DF_test$predicted_CHARGE_REDUCTION <- unlist(lapply(DF_test$y_hat, function(x) ifelse(x >=clf_thresh, 1, 0)))
+accuracy <- function(df){
+  tbl <- table(df$CHARGE_REDUCTION, df$CHARGE_REDUCTION_PREDICT)
+  accuracy = (tbl[1]+tbl[4])/sum(tbl)
+}
 
-# Confusion Matrix
-table(DF_test$CHARGE_REDUCTION, DF_test$predicted_CHARGE_REDUCTION)
+error <- function(df){
+  tbl <- table(df$CHARGE_REDUCTION, df$CHARGE_REDUCTION_PREDICT)
+  accuracy =  (tbl[2]+tbl[3])/sum(tbl)
+}
+
+# Predict Probability CHARGE_REDUCTION == 1 
+# Matrix Multiple Input features with weight vector.
+DF_test$y_hat <- predict(test_mtx, W)
+DF_train$y_hat <- predict(train_mtx, W)
+
+# Convert probabilities to class(1: Charge was reduced; 0 No Charge Reduction) based on `clf_thresh`
+clf_thresh = 0.203
+DF_train$CHARGE_REDUCTION_PREDICT <- classify(DF_train$y_hat, clf_thresh)
+DF_test$CHARGE_REDUCTION_PREDICT <- classify(DF_test$y_hat, clf_thresh)
+
+print(accuracy(DF_train))
+print(accuracy(DF_test))
+
+print(error(DF_train))
+print(error(DF_test))
+
+# Write Result Files
+## First, add column to indicate training and test set.
+DF_combined <- rbind(DF_train, DF_test)
+
+write.table(DF_combined, file='results_model3.csv', sep=',', quote=FALSE, row.names = FALSE)
+```
