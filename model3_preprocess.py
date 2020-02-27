@@ -63,29 +63,32 @@ def preprocess(df, to_keep):
     df = scale_minmax(df, 'CLASS.INITIATIONS', 1, 4) # min and max classes
     return df
 
-##### INPUTS ####
-train_df = pd.read_csv(sys.argv[1])
-test_df = pd.read_csv(sys.argv[2])
+if __name__ == "__main__":
+    ##### INPUTS ####
+    train_df = pd.read_csv(sys.argv[1])
+    test_df = pd.read_csv(sys.argv[2])
 
-train_ids = train_df['CASE_PARTICIPANT_ID']
-test_ids = test_df['CASE_PARTICIPANT_ID']
+    train_ids = train_df['CASE_PARTICIPANT_ID']
+    test_ids = test_df['CASE_PARTICIPANT_ID']
 
-full_df = pd.concat([train_df, test_df], axis=0)
-full_df = full_df.set_index('CASE_PARTICIPANT_ID')
-full_df = full_df.drop('CASE_PARTICIPANT_ID')
+    full_df = pd.concat([train_df, test_df], axis=0)
+    full_df = full_df.set_index('CASE_PARTICIPANT_ID')
+    full_df = full_df.drop('CASE_PARTICIPANT_ID')
 
-#### CALLS ####
-to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', \
-    'AOIC',  'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', \
-    'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
+        #### CALLS ####
+    to_keep = ['LAW_ENFORCEMENT_AGENCY', 'INCIDENT_CITY', 'CLASS.INITIATIONS', \
+            'AOIC',  'AGE_AT_INCIDENT', 'GENDER', 'RACE', 'UPDATED_OFFENSE_CATEGORY', \
+            'JUDGE', 'COURT_NAME', 'COURT_FACILITY', 'CHARGE_REDUCTION']
 
-# Parse Train Data
-full_df = preprocess(full_df, to_keep)
-full_df.loc[train_ids].to_csv('train_processed.csv', index=True)
-full_df.loc[test_ids].to_csv('test_processed.csv', index=True)
+    # Parse Train Data
+    full_df = preprocess(full_df, to_keep)
+    #full_df['CASE_PARTICIPANT_ID'] = list(train_ids) + list(test_ids)
 
-# Write features to use in json options file.
-header = ','.join(list(full_df.drop(['CHARGE_REDUCTION'], axis=1)))
-options_file = 'chicago.json'
-folds = 5 # k-fold to use in options file for hyperparameter selection.
-mod_json(options_file, header, folds, 'train_processed.csv')
+    full_df.head(n=train_df.shape[0]).to_csv('train_processed.csv', index=False)
+    full_df.tail(n=test_df.shape[0]).to_csv('test_processed.csv', index=False)
+
+    # Write features to use in json options file.
+    header = ','.join(list(full_df.drop(['CHARGE_REDUCTION'], axis=1)))
+    options_file = 'chicago.json'
+    folds = 5 # k-fold to use in options file for hyperparameter selection.
+    mod_json(options_file, header, folds, 'train_processed.csv')
