@@ -94,7 +94,7 @@ DF_test$y_hat <- predict(test_mtx, W)
 DF_train$y_hat <- predict(train_mtx, W)
 
 # Convert probabilities to class(1: Charge was reduced; 0 No Charge Reduction) based on `clf_thresh`
-clf_thresh = 0.203
+clf_thresh = 0.243
 DF_train$CHARGE_REDUCTION_PREDICT <- classify(DF_train$y_hat, clf_thresh)
 DF_test$CHARGE_REDUCTION_PREDICT <- classify(DF_test$y_hat, clf_thresh)
 
