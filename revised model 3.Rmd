@@ -1,0 +1,283 @@
+#Model 3 (Suggestive Model)
+
+```{r}
+##################
+#Model 3 This is the historical model with rare cases removed
+
+df <- read.csv("/blackthenwhite.csv")  #this is the dataset already subsetted for AOIC == 5101110 | AOIC == 16750 | AOIC == 16741 | AOIC == 16753 | AOIC == 15601 | AOIC == 15600 | AOIC == 16722 | AOIC == 16720)
+
+#rows 1:7096 are black, 7097:9747 are white
+
+#create all factor variables
+df <- df[,-10]
+df <- df[,-1]
+df$AOIC <- as.factor(df$AOIC)
+df$CLASS_INITIATIONS <- as.factor(df$CLASS_INITIATIONS)
+
+str(df)
+
+#one hot transformation
+df <- one_hot(as.data.table(df))
+
+#train and test set
+set.seed(3984)
+trainIndex <- createDataPartition(df$CHARGE_REDUCTION, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+training <- df[ trainIndex,]
+testing <- df[ -trainIndex,] #rows 1:1413 are black
+
+new_training <- training[,-380]
+new_testing <- testing[,-380]
+
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+
+new_training <- as.matrix(new_training)
+new_training <- as(new_training, "dgCMatrix")
+new_one <- as.numeric(training$CHARGE_REDUCTION)
+
+train$data <- new_training
+train$label <- new_one
+
+new_testing <- as.matrix(new_testing)
+new_testing <- as(new_testing, "dgCMatrix")
+new_two <- as.numeric(testing$CHARGE_REDUCTION)
+
+test$data <- new_testing
+test$label <- new_two
+
+str(train)
+str(test)
+
+dtrain <- xgb.DMatrix(data = train$data, label = train$label)
+dtest <- xgb.DMatrix(data = test$data, label = test$label)
+bst <- xgboost(data = dtrain, max_depth = 45, eta = 1, nthread = 2, nrounds = 45, objective = "binary:logistic")
+
+xgb_predict <- predict(bst, test$data)
+
+Predict <- cbind(testing,xgb_predict)
+Predict <- Predict %>% mutate(xgb_predict2=ifelse(xgb_predict>0.39,1,0))
+xgb_predict2 <- Predict$xgb_predict2
+
+max(bst$evaluation_log$train_auc)
+
+#results of prediction model
+pdbblack <- Predict[1:1413,]
+mean(pdbblack$xgb_predict2, na.rm=T) #11.6% for black
+pdbwhite <- Predict[1414:1949,]
+mean(pdbwhite$xgb_predict2, na.rm=T) #15.5% for white
+
+#actual results
+mean(Predict$CHARGE_REDUCTION[Predict$RACE_Black==1], na.rm=T) #10.8% for black
+mean(Predict$CHARGE_REDUCTION[Predict$RACE_White==1], na.rm=T) #14.9% for white
+
+#extracting the dataframe for results comparison
+#which( colnames(Predict)=="CHARGE_REDUCTION" )
+#Predict <- Predict[ -c(1:379) ]
+#predictive_and_actual <- Predict
+#colnames(predictive_and_actual) <- c("actual", "predictive_percent", "predictive_decision")
+#write.csv(predictive_and_actual, "predictive_results.csv", row.names = F)
+
+```
+
+```{r}
+#Model 3 This is the converted white model, the suggestive model
+
+df <- read.csv("/blackthenwhite.csv")  #this is the dataset already subsetted for AOIC == 5101110 | AOIC == 16750 | AOIC == 16741 | AOIC == 16753 | AOIC == 15601 | AOIC == 15600 | AOIC == 16722 | AOIC == 16720)
+
+df <- df[,-10]
+df$AOIC <- as.factor(df$AOIC)
+df$CLASS_INITIATIONS <- as.factor(df$CLASS_INITIATIONS)
+
+
+set.seed(3984)
+trainIndex <- createDataPartition(df$CHARGE_REDUCTION, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+training <- df[ trainIndex,]
+testing <- df[-trainIndex,]
+
+pdb <- subset(testing[1:1413,])
+pdw <- subset(testing[1414:1949,])
+
+length(which(pdb$AOIC==16720)) #736
+length(which(pdw$AOIC==16720)) #243
+addaoic <- subset(pdw, AOIC == 16720)
+addaoicextra <- addaoic[sample(nrow(addaoic), 7), ]
+newaoic16720 <- rbind(addaoic, addaoic, addaoic, addaoicextra)
+
+length(which(pdb$AOIC==16722)) #365
+length(which(pdw$AOIC==16722)) #192
+addaoic <- subset(pdw, AOIC == 16722)
+addaoicextra <- addaoic[sample(nrow(addaoic), 173), ]
+newaoic16722 <- rbind(addaoic, addaoicextra)
+
+length(which(pdb$AOIC==15600)) #186
+length(which(pdw$AOIC==15600)) #44
+addaoic <- subset(pdw, AOIC == 15600)
+addaoicextra <- addaoic[sample(nrow(addaoic), 10), ]
+newaoic15600 <- rbind(addaoic, addaoic, addaoic, addaoic, addaoicextra)
+
+length(which(pdb$AOIC==15601)) #78
+length(which(pdw$AOIC==15601)) #38
+addaoic <- subset(pdw, AOIC == 15601)
+addaoicextra <- addaoic[sample(nrow(addaoic), 2), ]
+newaoic15601 <- rbind(addaoic, addaoic, addaoicextra)
+
+length(which(pdb$AOIC==16753)) #17
+length(which(pdw$AOIC==16753)) #5
+addaoic <- subset(pdw, AOIC == 16753)
+addaoicextra <- addaoic[sample(nrow(addaoic), 2), ]
+newaoic16753 <- rbind(addaoic, addaoic, addaoic, addaoicextra)
+
+length(which(pdb$AOIC==16741)) #13
+length(which(pdw$AOIC==16741)) #2
+addaoic <- subset(pdw, AOIC == 16741)
+addaoicextra <- addaoic[sample(nrow(addaoic), 1), ]
+newaoic16741 <- rbind(addaoic, addaoic, addaoic, addaoic,addaoic, addaoic, addaoicextra)
+
+length(which(pdb$AOIC==16750)) #11
+length(which(pdw$AOIC==16750)) #8
+addaoic <- subset(pdw, AOIC == 16750)
+addaoicextra <- addaoic[sample(nrow(addaoic), 3), ]
+newaoic16750 <- rbind(addaoic, addaoicextra)
+
+length(which(pdb$AOIC==5101110)) #7
+length(which(pdw$AOIC==5101110)) #4
+addaoic <- subset(pdw, AOIC == 5101110)
+addaoicextra <- addaoic[sample(nrow(addaoic), 3), ]
+newaoic5101110 <- rbind(addaoic, addaoicextra)
+
+pdboth <- rbind(newaoic16720, newaoic16722, newaoic15600, newaoic15601, newaoic16753, newaoic16741, newaoic16750, newaoic5101110, pdw)
+
+placeholder <- pdboth$CASE_PARTICIPANT_ID
+pdboth <- pdboth[,-1]
+
+######################################################
+
+df <- read.csv("/blackthenwhite.csv")  #this is the dataset already subsetted for AOIC == 5101110 | AOIC == 16750 | AOIC == 16741 | AOIC == 16753 | AOIC == 15601 | AOIC == 15600 | AOIC == 16722 | AOIC == 16720)
+
+#rows 1:7096 are black, 7097:9747 are white
+
+#create all factor variables
+df <- df[,-10]
+df <- df[,-1]
+df$AOIC <- as.factor(df$AOIC)
+df$CLASS_INITIATIONS <- as.factor(df$CLASS_INITIATIONS)
+
+str(df)
+
+#one hot transformation
+df <- one_hot(as.data.table(df))
+
+#train and test set
+set.seed(3984)
+trainIndex <- createDataPartition(df$CHARGE_REDUCTION, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+training <- df[ trainIndex,]
+testing <- pdboth
+testing <- one_hot(as.data.table(testing))
+
+new_training <- training[,-380]
+new_testing <- testing[,-380]
+
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+
+new_training <- as.matrix(new_training)
+new_training <- as(new_training, "dgCMatrix")
+new_one <- as.numeric(training$CHARGE_REDUCTION)
+
+train$data <- new_training
+train$label <- new_one
+
+new_testing <- as.matrix(new_testing)
+new_testing <- as(new_testing, "dgCMatrix")
+new_two <- as.numeric(testing$CHARGE_REDUCTION)
+
+test$data <- new_testing
+test$label <- new_two
+
+str(train)
+str(test)
+
+dtrain <- xgb.DMatrix(data = train$data, label = train$label)
+dtest <- xgb.DMatrix(data = test$data, label = test$label)
+bst <- xgboost(data = dtrain, max_depth = 45, eta = 1, nthread = 2, nrounds = 45, objective = "binary:logistic")
+
+xgb_predict <- predict(bst, test$data)
+
+Predict <- cbind(testing,xgb_predict)
+Predict <- Predict %>% mutate(xgb_predict2=ifelse(xgb_predict>0.39,1,0))
+xgb_predict2 <- Predict$xgb_predict2
+
+#results of prediction model
+pdbblack <- Predict[1:1413,]
+mean(pdbblack$xgb_predict2, na.rm=T) #11.6% for black
+pdbwhite <- Predict[1414:1949,]
+mean(pdbwhite$xgb_predict2, na.rm=T) #15.5% for white
+
+#extracting the dataframe for results comparison
+#which( colnames(Predict)=="xgb_predict2" )
+#Predict <- Predict[ -c(1:380) ]
+#suggestive <- Predict
+#colnames(suggestive) <- c("suggestive_percent", "suggestive_decision")
+#write.csv(suggestive, "suggestive_results.csv", row.names = F)
+
+```
+
+```{r}
+#Results from actual, historical, and suggestive in one dataframe
+
+###This is just getting the dataframes together######
+df <- read.csv("/predictive_results.csv")
+df2 <- read.csv("/suggestive_results.csv")
+
+df$suggestive_percent <- df2$suggestive_percent
+df$suggestive_decision <- df2$suggestive_decision
+
+df5 <- read.csv("/blackthenwhite.csv")
+
+#train and test set
+set.seed(3984)
+trainIndex <- createDataPartition(df5$CHARGE_REDUCTION, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+training <- df5[ trainIndex,]
+testing <- df5[ -trainIndex,] #rows 1:1413 are black
+write.csv(testing, "fulltestset.csv", row.names = F)
+
+df3 <- read.csv("/fulltestset.csv")
+
+allmodelresults <- cbind(df3, df)
+write.csv(allmodelresults, "allmodelresults.csv", row.names = F)
+
+```
+
+#comparing results across the models
+
+```{r}
+three_res <- read.csv("/allmodelresults.csv")
+
+#white
+mean(three_res$actual[three_res$RACE=="White"]) #14.9 received in actual
+mean(three_res$predictive_percent[three_res$RACE=="White"])
+mean(three_res$predictive_decision[three_res$RACE=="White"]) #15.5 received in predictive
+mean(three_res$suggestive_percent[three_res$RACE=="White"])
+mean(three_res$suggestive_decision[three_res$RACE=="White"]) #15.5 received in suggestive
+
+#Black
+mean(three_res$actual[three_res$RACE=="Black"]) #10.8 received in actual
+mean(three_res$predictive_percent[three_res$RACE=="Black"]) 
+mean(three_res$predictive_decision[three_res$RACE=="Black"]) #11.6 received in predictive
+mean(three_res$suggestive_percent[three_res$RACE=="Black"])
+mean(three_res$suggestive_decision[three_res$RACE=="Black"]) #16.7 received in suggestive
+
+
+```
