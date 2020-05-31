@@ -1,18 +1,24 @@
-# Princeton-CLSJ-PBM-Project
+## Data Collection and Processing
 
-## Model 1 - Unaltered Model
+For our modelling we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the ["Cook County District Attorney Site"](https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed).
 
-For our baseline model we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the ["Cook County District Attorney Site"](https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed). To make a prediction we build an XGBoost model using only cases where the crime charged was in the Retail Theft category.
+For simplicity’s sake, in this example, we decided to focus on just one crime category: retail
+theft. For the same reason, we focused on only the two most common racial groups listed for
+defendants: White and Black.
 
-## Model 2 - Convert race of individuals to White
+The code for Data Processing is in `Data Processing & Transformation.Rmd` from lines 1-139.
 
-In our second model, we alter race and covariates of race in order to examine how these may alter the treatment of specific cases.
+## Purely Predictive Model
 
-## Model 2 - Suggestive Model v2
+This model reflects how the defendant historically would have been treated. To make a prediction we build an XGBoost model using only cases where the crime charged was in the Retail Theft category.
 
-This is additional code that can be used to experiment with the suggestive model. Download "revised model 3.Rmd" and "blackandwhite.csv"
+The code for creating the purely predictive model and interpreting results is in two places:
+* `Predictive & Suggestive Models.Rmd` from lines 8-72
+* `Predictive & Suggestive Models_v2.Rmd` from lines 3-82
 
-## Model 3 - Race Agnostic Model
+We recommend users to try both approaches, however to replicate the results in our report we advise using v2.
+
+## Race-Neutral Predictive Model
 
 For the race agnostic model we utilize the method developed by Yahav Bechavod and Katrina Ligett in ["Penalizing Unfairness in Binary Classification"](https://arxiv.org/abs/1707.00044). Predictions with fitted model can be run immediately in `race_agnostic_model.Rmd`. To retrain model follow the instructions below.
 
@@ -37,9 +43,27 @@ Run the training proceedure.
 
 The method will split the training set via 5-fold cross validation to suggest the best hyperparameters to be used, and returns many outputs which includes the best weight vector used in the trained logistic regression function. Note, test_processed.csv is not being used in the 5-fold cross validation.
 
-
 ### Testing
 
 Fitted weights can be found near the end of the result file under the header "Best Values for Objective squared relaxation" with key "w". Unfortuneately, the authors do not provide an automated way to retrieve or parse results. Copy weights from `chicago.result` to `race_agnost_modelweights.csv`
 
 To predict on `train_processed.csv` run code in `race_agnostic_model.Rmd`.
+
+## Suggestive Model
+
+The purpose of this model is to show how the case would resolve if the defendant was treated as if they were White.
+
+The code to alter race and covariates of race in order to examine how these may alter the treatment of specific cases is in two places:
+* `Data Processing & Transformation.Rmd` from lines 143-260
+* `Predictive & Suggestive Models_v2.Rmd` from lines 86-157 (refer to appendix for additional notes)
+
+The code for creating suggestive model predictions and interpreting results is in two places:
+* `Predictive & Suggestive Models.Rmd` from lines 76-130
+* `Predictive & Suggestive Models_v2.Rmd` from lines 161-280 (refer to appendix for additional notes)
+
+Once again, we recommend users try both approaches, however to replicate the results in our report we advise using v2.
+
+## Appendix
+
+### Notes for `Predictive & Suggestive Models_v2.Rmd`
+When trying to replicate our work with this file, we have a prepared file in the Data folder of this repository called `blackandwhite.csv'. We recommend using this file as your data input for this code only. Additionally, we have described the filters applied to the original data set to create it. 
