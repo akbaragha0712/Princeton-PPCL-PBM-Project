@@ -1,6 +1,6 @@
 ## Data Collection and Processing
 
-For our modelling we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the ["Cook County District Attorney Site"](https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed).
+For our modeling we will use historical prescendent in cases as the primary driver of our prediction. The data used to track historical treatment is available at the ["Cook County District Attorney Site"](https://datacatalog.cookcountyil.gov/browse?tags=state%27s+attorney+case-level&sortBy=most_accessed).
 
 For simplicity’s sake, in this example, we decided to focus on just one crime category: retail
 theft. For the same reason, we focused on only the two most common racial groups listed for
